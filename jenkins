@@ -1,27 +1,31 @@
 pipeline {
     agent any
-    environment {
-        ARM_CLIENT_ID = credentials('ARM_CLIENT_ID')
-        ARM_CLIENT_SECRET = credentials('ARM_CLIENT_SECRET')
-        ARM_TENANT_ID = credentials('ARM_TENANT_ID')
-        ARM_SUBSCRIPTION_ID = credentials('ARM_SUBSCRIPTION_ID')
-    }
 
+    environment {
+        ARM_CLIENT_ID       = credentials('ARM_CLIENT_ID')
+        ARM_CLIENT_SECRET   = credentials('ARM_CLIENT_SECRET')
+        ARM_SUBSCRIPTION_ID = credentials('ARM_SUBSCRIPTION_ID')
+        ARM_TENANT_ID       = credentials('ARM_TENANT_ID')
+
+        TF_IN_AUTOMATION = "true"
+    }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                echo 'Code is already checked out from SCM'
+                checkout scm
             }
         }
 
         stage('Terraform Format & Validate') {
             steps {
                 dir('terraform') {
-                    sh 'terraform fmt -check'
-                    sh 'terraform init -backend=false'
-                    sh 'terraform validate'
+                    sh '''
+                        terraform fmt -check
+                        terraform init -backend=false
+                        terraform validate
+                    '''
                 }
             }
         }
@@ -29,32 +33,54 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 dir('terraform') {
-                    sh 'terraform plan'
+                    sh '''
+                        terraform plan
+                    '''
                 }
             }
         }
+
         stage('Terraform Apply') {
+            input {
+                message "Approve Terraform Apply?"
+            }
             steps {
                 dir('terraform') {
-                     sh 'terraform apply -auto-approve'
+                    sh '''
+                        terraform apply -auto-approve
+                    '''
                 }
             }
         }
-
-
-
 
         stage('Ansible Syntax Check') {
             steps {
-                sh 'ansible-playbook --syntax-check ansible/nginx.yaml'
+                sh '''
+                    ansible-playbook --syntax-check ansible/nginx.yaml
+                '''
             }
         }
 
         stage('Deploy using Ansible') {
+            input {
+                message "Approve deployment using Ansible?"
+            }
             steps {
-                input message: 'Approve deployment using Ansible?'
-                sh 'ansible-playbook -i ansible/inventory.ini ansible/nginx.yaml'
+                sh '''
+                    export ANSIBLE_HOST_KEY_CHECKING=False
+                    ansible-playbook -i ansible/inventory.ini ansible/nginx.yaml
+                '''
             }
         }
     }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully"
+        }
+        failure {
+            echo "❌ Pipeline failed"
+        }
+    }
 }
+
