@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                echo 'Code is already checked out from SCM'
+            }
+        }
+
+        stage('Terraform Format & Validate') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform fmt -check'
+                    sh 'terraform init -backend=false'
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform plan'
+                }
+            }
+        }
+
+        stage('Ansible Syntax Check') {
+            steps {
+                sh 'ansible-playbook --syntax-check ansible/nginx.yaml'
+            }
+        }
+
+        stage('Deploy using Ansible') {
+            steps {
+                input message: 'Approve deployment using Ansible?'
+                sh 'ansible-playbook -i ansible/inventory.ini ansible/nginx.yaml'
+            }
+        }
+    }
+}
