@@ -1,27 +1,12 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
-    }
-  }
-}
-
 provider "azurerm" {
   features {}
 }
 
-# -----------------------------
-# Resource Group
-# -----------------------------
 resource "azurerm_resource_group" "rg" {
   name     = "rg-devops-demo"
-  location = "Central India"
+  location = "centralindia"
 }
 
-# -----------------------------
-# Virtual Network & Subnet
-# -----------------------------
 resource "azurerm_virtual_network" "vnet" {
   name                = "vnet-devops"
   address_space       = ["10.0.0.0/16"]
@@ -36,9 +21,14 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# -----------------------------
-# Network Security Group
-# -----------------------------
+resource "azurerm_public_ip" "public_ip" {
+  name                = "pip-devops"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
 resource "azurerm_network_security_group" "nsg" {
   name                = "nsg-devops"
   location            = azurerm_resource_group.rg.location
@@ -69,19 +59,6 @@ resource "azurerm_network_security_group" "nsg" {
   }
 }
 
-# -----------------------------
-# Public IP
-# -----------------------------
-resource "azurerm_public_ip" "public_ip" {
-  name                = "pip-devops"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
-}
-
-# -----------------------------
-# Network Interface
-# -----------------------------
 resource "azurerm_network_interface" "nic" {
   name                = "nic-devops"
   location            = azurerm_resource_group.rg.location
@@ -100,22 +77,20 @@ resource "azurerm_network_interface_security_group_association" "nsg_assoc" {
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
-# -----------------------------
-# Linux Virtual Machine
-# -----------------------------
 resource "azurerm_linux_virtual_machine" "vm" {
   name                = "vm-devops"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   size                = "Standard_B1s"
   admin_username      = "azureuser"
+
   network_interface_ids = [
     azurerm_network_interface.nic.id
   ]
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file("${path.module}/ssh_key.pub")
+    public_key = file("/var/lib/jenkins/.ssh/jenkins_key.pub")
   }
 
   os_disk {
@@ -131,14 +106,11 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 }
 
-# -----------------------------
-# Auto-generate Ansible Inventory
-# -----------------------------
 resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/../ansible/inventory.ini"
+  filename = "../ansible/inventory.ini"
   content  = <<EOF
 [web]
-vmweb ansible_host=${azurerm_public_ip.public_ip.ip_address} ansible_user=azureuser
+vmweb ansible_host=${azurerm_public_ip.public_ip.ip_address} ansible_user=azureuser ansible_ssh_private_key_file=/var/lib/jenkins/.ssh/jenkins_key
 EOF
 }
 

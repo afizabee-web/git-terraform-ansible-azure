@@ -1,6 +1,8 @@
 # Terraform
 .terraform/
 *.tfstate
+inventory.ini
+
 *.tfstate.backup
 terraform.tfvars
 
